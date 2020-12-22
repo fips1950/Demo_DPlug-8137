@@ -22,7 +22,10 @@ namespace WpfApp1
 
     private string _status;
     public string Status { get => this._status; set { this._status = value; OnPropertyChanged(); } }
-    public ICommand Cmd { get => new RelayCommand(CmdExec); }
+
+    private bool _isWorking = false;
+    private bool IsWorking { get => this._isWorking; set { this._isWorking = value; OnPropertyChanged(nameof(Cmd)); } }
+    public ICommand Cmd { get => new RelayCommand(CmdExec, CanCmdExec); }
 
     private int _id = 1;
     public int ID { get => this._id; set { this._id = value; OnPropertyChanged(); } }
@@ -43,31 +46,38 @@ namespace WpfApp1
           break;
       }
     }
+    private bool CanCmdExec(object obj) => (obj.ToString() == "Show") ? true : !this._isWorking;
 
-    private void CreataTable()
+    private async void CreataTable()
     {
-      try
+      this.IsWorking = true;
+      await Task.Factory.StartNew(() =>
       {
-        using (SqlConnection cn = new SqlConnection(WpfApp1.Properties.Settings.Default.cnSQL))
+        try
         {
-          cn.Open();
-          using (SqlCommand cmd = new SqlCommand { Connection = cn })
+          using (SqlConnection cn = new SqlConnection(WpfApp1.Properties.Settings.Default.cnSQL))
           {
-            // delete previous table in SQL Server 2016 and above
-            cmd.CommandText = "DROP TABLE IF EXISTS Table1;";
-            cmd.ExecuteNonQuery();
-            // Create Table
-            cmd.CommandText = "CREATE Table [Table1]([ID] int Identity, [FolderName] nvarchar(255), [FileName] nvarchar(255), [FileType] nvarchar(10), [Picture] image, CONSTRAINT [PK_Table1] PRIMARY KEY ([ID]))";
-            cmd.ExecuteNonQuery();
+            cn.Open();
+            using (SqlCommand cmd = new SqlCommand { Connection = cn })
+            {
+              // delete previous table in SQL Server 2016 and above
+              cmd.CommandText = "DROP TABLE IF EXISTS Table1;";
+              cmd.ExecuteNonQuery();
+              // Create Table
+              cmd.CommandText = "CREATE Table [Table1]([ID] int Identity, [FolderName] nvarchar(255), [FileName] nvarchar(255), [FileType] nvarchar(10), [Picture] image, CONSTRAINT [PK_Table1] PRIMARY KEY ([ID]))";
+              cmd.ExecuteNonQuery();
+            }
           }
+          Status = "Table created";
         }
-        Status = "Table created";
-      }
-      catch (Exception ex) { Status = ex.Message; }
+        catch (Exception ex) { Status = ex.Message; }
+      });
+      this.IsWorking = false;
     }
 
     private async void InsertPictures(string directorypath)
     {
+      this.IsWorking = true;
       await Task.Factory.StartNew(() =>
       {
         int cnt = 0;
@@ -113,6 +123,7 @@ namespace WpfApp1
         catch (Exception ex) { Status = ex.Message; }
         Status = $"{cnt} pictures loaded";
       });
+      this.IsWorking = false;
     }
 
     private IEnumerable<string> GetFilesRecursive(string directorypath)
@@ -123,6 +134,7 @@ namespace WpfApp1
 
     private void ShowImage(ref int ID)
     {
+      this.IsWorking = true;
       try
       {
         string msg = "no image loaded";
@@ -146,6 +158,7 @@ namespace WpfApp1
         Status = msg;
       }
       catch (Exception ex) { Status = ex.Message; }
+      this.IsWorking = false;
     }
 
     private static BitmapImage LoadBitmapImage(byte[] imageData)
